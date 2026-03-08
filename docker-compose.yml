@@ -1,0 +1,75 @@
+version: "3"
+services:
+  db:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    env_file:
+      - ./environments/db.env
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./containers/db/conf.d:/etc/mysql/conf.d:ro
+
+  elasticsearch:
+    build:
+      context: docker_image/elasticsearch
+    container_name: elasticsearch
+    environment:
+      - node.name=es_master
+      - discovery.type=single-node
+      - discovery.seed_hosts=elasticsearch
+      - cluster.name=docker-c1luster
+      - bootstrap.memory_lock=true
+      - "http.host=0.0.0.0"
+    ports:
+      - 9200:9200
+      - 9300:9300
+
+  # logstash:
+  #  build:
+  #    context: docker_image/logstash
+  #  container_name: logstash
+  #  ports: ['9600:9600']
+  #  env_file:
+  #    - ./environments/db.env
+  #  volumes:
+  #    - ./docker_image/logstash/pipeline/tickets_jdbc.conf:/usr/share/logstash/pipeline/tickets_jdbc.conf
+  #  links:
+  #    - db
+  #    - elasticsearch
+
+  app:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    env_file:
+      - ./environments/app.env
+    volumes:
+      - bundle_install:/pinejuice/vendor/bundle
+      - ./app:/pinejuice/app
+      - ./bin:/pinejuice/bin
+      - ./config:/pinejuice/config
+      - ./config.ru:/pinejuice/config.ru
+      - ./db:/pinejuice/db
+      - ./.rubocop.yml:/pinejuice/.rubocop.yml
+      - ./.rubocop_todo.yml:/pinejuice/.rubocop_todo.yml
+      - ./Gemfile:/pinejuice/Gemfile
+      - ./Gemfile.lock:/pinejuice/Gemfile.lock
+      - ./lib:/pinejuice/lib
+      - ./public:/pinejuice/public
+      - ./Rakefile:/pinejuice/Rakefile
+      - ./spec:/pinejuice/spec
+      - ./log:/pinejuice/log
+    command: "bundle exec rails s -b '0.0.0.0'"
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    tty: true
+    links:
+      - db
+      - elasticsearch
+
+volumes:
+  db_data:
+    driver: local
+  bundle_install:
